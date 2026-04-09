@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Waifu - Live2D</title>
+  
+  <!-- Live2D Core -->
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+  
+  <!-- PIXI.js -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@5.3.3/dist/pixi.min.js"></script>
+  
+  <!-- Live2D Display -->
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      overflow: hidden;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Header bar */
+    #header-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: rgba(22, 33, 62, 0.92);
+      border-bottom: 2px solid #e94560;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+    #header-bar h1 {
+      font-size: 1.1em;
+      color: #e94560;
+      margin-right: 12px;
+    }
+    #state-display {
+      font-size: 0.85em;
+      color: #aaa;
+    }
+    #state-display span { color: #e94560; font-weight: bold; }
+    #model-selector select {
+      background: #2d2d44;
+      color: #fff;
+      border: 1px solid #e94560;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #model-selector select:hover { border-color: #ff6b8a; }
+
+    /* Expression panel - bottom */
+    #expression-panel {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(22, 33, 62, 0.95);
+      border-top: 2px solid #e94560;
+      z-index: 100;
+    }
+    .expr-section {
+      padding: 6px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+      align-items: center;
+    }
+    .expr-section-label {
+      font-size: 0.7em;
+      color: #666;
+      min-width: 60px;
+      text-align: right;
+      padding-right: 6px;
+    }
+    .expr-btn {
+      padding: 4px 10px;
+      border: 1px solid #e94560;
+      background: transparent;
+      color: #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75em;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .expr-btn:hover { background: #e94560; color: #fff; }
+    .expr-btn.active {
+      background: #e94560;
+      color: #fff;
+      font-weight: bold;
+      box-shadow: 0 0 8px rgba(233, 69, 96, 0.5);
+    }
+
+    /* Emotion buttons (e1-e12) */
+    .emotion-btn {
+      padding: 4px 10px;
+      border: 1px solid #ff69b4;
+      background: transparent;
+      color: #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75em;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .emotion-btn:hover { background: #ff69b4; color: #fff; }
+    .emotion-btn.active {
+      background: #ff69b4;
+      color: #fff;
+      font-weight: bold;
+      box-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
+    }
+
+    /* Manual toggle */
+    #manual-toggle {
+      padding: 4px 10px;
+      border: 1px solid #e94560;
+      background: #e94560;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8em;
+      min-width: 32px;
+    }
+
+    /* Status bar */
+    #status-bar {
+      padding: 4px 12px;
+      background: rgba(15, 15, 35, 0.95);
+      font-size: 0.7em;
+      color: #555;
+      text-align: center;
+      border-top: 1px solid #222;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div id="header-bar">
+    <h1>Hermes Waifu</h1>
+    <div id="state-display">State: <span id="stateText">idle</span> <span id="emotionText"></span></div>
+    <div id="model-selector">
+      <select id="model-select">
+        <option value="">Loading...</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="expression-panel">
+    <div class="expr-section">
+      <button id="manual-toggle" onclick="toggleManual()">⏸</button>
+      <span class="expr-section-label">states:</span>
+      <div id="state-buttons"></div>
+    </div>
+    <div class="expr-section">
+      <span class="expr-section-label">expressions:</span>
+      <div id="expression-buttons"></div>
+    </div>
+    <div class="expr-section">
+      <span class="expr-section-label">emotions:</span>
+      <div id="emotion-buttons"></div>
+    </div>
+  </div>
+
+  <div id="status-bar">initializing...</div>
+  
+  <script>
+    // ── Model definitions ──────────────────────────────────────────────────
+    const models = [
+      { name: "Hiyori", url: "https://cdn.jsdelivr.net/gh/Live2D/CubismWebSamples@develop/Samples/Resources/Hiyori/Hiyori.model3.json", type: "motion-only" },
+      { name: "Haru",   url: "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/haru/haru_greeter_t03.model3.json", type: "expression", expressions: ["f00","f01","f02","f03","f04","f05","f06","f07"] },
+      { name: "Mao",    url: "https://cdn.jsdelivr.net/gh/Live2D/CubismWebSamples@develop/Samples/Resources/Mao/Mao.model3.json", type: "expression", expressions: ["exp_01","exp_02","exp_03","exp_04","exp_05","exp_06","exp_07","exp_08"] },
+      { name: "Rice",   url: "https://cdn.jsdelivr.net/gh/Live2D/CubismWebSamples@develop/Samples/Resources/Rice/Rice.model3.json", type: "motion-only" },
+      { name: "Senko",  url: "https://cdn.jsdelivr.net/gh/Eikanya/Live2d-model/Live2D/Senko_Normals/senko.model3.json", type: "motion-only" }
+    ];
+
+    // Expression descriptions (for tooltips)
+    const HARU_EXPR_NAMES = {
+      f00: "neutral", f01: "surprised", f02: "angry", f03: "worried",
+      f04: "happy", f05: "shocked", f06: "sad", f07: "pouty"
+    };
+    const MAO_EXPR_NAMES = {
+      exp_01: "neutral", exp_02: "smile", exp_03: "neutral2", exp_04: "excited",
+      exp_05: "sad", exp_06: "shy", exp_07: "worried", exp_08: "angry"
+    };
+
+    // Agent states
+    const STATES = ['idle','listening','speaking','thinking','working','error'];
+
+    // Emotion system (e1-e12)
+    const EMOTIONS = {
+      e1:  'happy',     e2: 'amused',      e3: 'empathetic', e4: 'curious',
+      e5:  'confused',  e6: 'surprised',   e7: 'embarrassed',e8: 'confident',
+      e9:  'annoyed',   e10:'overwhelmed',  e11:'determined', e12:'affectionate'
+    };
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let app, currentModel = null, currentModelName = '';
+    let currentState = 'idle', currentEmotion = '', currentExpression = '';
+    let manualMode = false;
+    let lastServerState = '', lastServerEmotion = '';
+    let isDragging = false, dragOffset = { x: 0, y: 0 };
+    let modelScale = 0.3;
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const stateText = document.getElementById('stateText');
+    const emotionText = document.getElementById('emotionText');
+    const statusBar = document.getElementById('status-bar');
+    const stateBtnsDiv = document.getElementById('state-buttons');
+    const exprBtnsDiv = document.getElementById('expression-buttons');
+    const emotionBtnsDiv = document.getElementById('emotion-buttons');
+
+    function setStatus(msg) { statusBar.textContent = msg; }
+
+    // ── Build buttons ──────────────────────────────────────────────────────
+    function buildStateButtons() {
+      stateBtnsDiv.innerHTML = '';
+      STATES.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = 'expr-btn';
+        btn.textContent = s;
+        btn.dataset.state = s;
+        btn.addEventListener('click', () => setState(s));
+        stateBtnsDiv.appendChild(btn);
+      });
+    }
+
+    function buildExpressionButtons(modelName) {
+      exprBtnsDiv.innerHTML = '';
+      const model = models.find(m => m.name === modelName);
+      if (!model || model.type !== 'expression') {
+        const hint = document.createElement('span');
+        hint.style.cssText = 'font-size:0.7em;color:#555;';
+        hint.textContent = '(motion-only model)';
+        exprBtnsDiv.appendChild(hint);
+        return;
+      }
+      const names = modelName === 'Haru' ? HARU_EXPR_NAMES : MAO_EXPR_NAMES;
+      model.expressions.forEach(e => {
+        const btn = document.createElement('button');
+        btn.className = 'expr-btn';
+        btn.textContent = e;
+        btn.title = names[e] || e;
+        btn.dataset.expression = e;
+        btn.addEventListener('click', () => setExpression(e));
+        exprBtnsDiv.appendChild(btn);
+      });
+    }
+
+    function buildEmotionButtons() {
+      emotionBtnsDiv.innerHTML = '';
+      Object.entries(EMOTIONS).forEach(([id, name]) => {
+        const btn = document.createElement('button');
+        btn.className = 'emotion-btn';
+        btn.textContent = `${id} ${name}`;
+        btn.dataset.emotion = id;
+        btn.addEventListener('click', () => setEmotion(id));
+        emotionBtnsDiv.appendChild(btn);
+      });
+    }
+
+    // ── Update active highlights ───────────────────────────────────────────
+    function updateActiveButtons() {
+      stateBtnsDiv.querySelectorAll('.expr-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.state === currentState);
+      });
+      exprBtnsDiv.querySelectorAll('.expr-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.expression === currentExpression);
+      });
+      emotionBtnsDiv.querySelectorAll('.emotion-btn').forEach(btn => {
+        const isActive = btn.dataset.emotion === currentEmotion;
+        btn.classList.toggle('active', isActive);
+        if (isActive) {
+          btn.style.background = '#ff69b4';
+          btn.style.color = '#fff';
+        } else {
+          btn.style.background = 'transparent';
+          btn.style.color = '#ccc';
+        }
+      });
+      stateText.textContent = currentState + (manualMode ? ' [manual]' : '');
+      emotionText.textContent = currentEmotion ? ` | ${EMOTIONS[currentEmotion] || currentEmotion} (${currentEmotion})` : '';
+    }
+
+    // ── Set state / expression / emotion ───────────────────────────────────
+    function setState(state, force = false) {
+      if (!force && state === currentState) return;
+      currentState = state;
+      currentEmotion = '';
+      currentExpression = '';
+      updateActiveButtons();
+    }
+
+    function setExpression(expr) {
+      currentExpression = expr;
+      currentState = expr;
+      currentEmotion = '';
+      updateActiveButtons();
+      // Try to apply to Live2D model
+      applyExpressionToModel(expr);
+    }
+
+    function setEmotion(emotion) {
+      currentEmotion = emotion;
+      currentState = emotion;
+      currentExpression = '';
+      updateActiveButtons();
+      // Try to map emotion to expression and apply
+      const model = models.find(m => m.name === currentModelName);
+      if (model && model.type === 'expression') {
+        const exprMap = currentModelName === 'Haru' ? HARU_EMOTION_MAP : MAO_EMOTION_MAP;
+        const expr = exprMap[emotion];
+        if (expr) {
+          currentExpression = expr;
+          applyExpressionToModel(expr);
+          updateActiveButtons();
+        }
+      }
+    }
+
+    // ── Emotion -> Expression maps (matches waifu_hook.py) ────────────────
+    const HARU_EMOTION_MAP = {
+      e1:'f04', e2:'f04', e3:'f03', e4:'f01', e5:'f06', e6:'f05',
+      e7:'f02', e8:'f04', e9:'f02', e10:'f03', e11:'f01', e12:'f04'
+    };
+    const MAO_EMOTION_MAP = {
+      e1:'exp_04', e2:'exp_02', e3:'exp_05', e4:'exp_07', e5:'exp_07', e6:'exp_07',
+      e7:'exp_06', e8:'exp_04', e9:'exp_08', e10:'exp_05', e11:'exp_04', e12:'exp_02'
+    };
+
+    // ── Apply expression to Live2D model ───────────────────────────────────
+    // Expression names like "f00" or "exp_01" need to map to integer indices
+    function exprNameToIndex(exprName) {
+      // Haru: f00-f07 → 0-7
+      const haruMatch = exprName.match(/^f0?(\d)$/);
+      if (haruMatch) return parseInt(haruMatch[1]);
+      // Mao: exp_01-exp_08 → 0-7
+      const maoMatch = exprName.match(/^exp_0?(\d)$/);
+      if (maoMatch) return parseInt(maoMatch[1]) - 1;
+      return 0;
+    }
+
+    function applyExpressionToModel(exprId) {
+      if (!currentModel) return;
+      const idx = exprNameToIndex(exprId);
+      try {
+        // Primary API: model.expression(index) — sets expression by array index
+        if (typeof currentModel.expression === 'function') {
+          currentModel.expression(idx);
+          setStatus(`Expression: ${exprId} [${idx}]`);
+          return;
+        }
+        // Fallback: internal manager directly
+        const em = currentModel.internalModel?.motionManager?.expressionManager;
+        if (em && typeof em.setExpression === 'function') {
+          em.setExpression(idx);
+          setStatus(`Expression: ${exprId} [${idx}]`);
+          return;
+        }
+        setStatus(`No expression API on this model`);
+      } catch (e) {
+        console.warn('Expression apply error:', e);
+        setStatus(`Expression: ${exprId} — ${e.message}`);
+      }
+    }
+
+    // ── Manual toggle ──────────────────────────────────────────────────────
+    function toggleManual() {
+      manualMode = !manualMode;
+      const btn = document.getElementById('manual-toggle');
+      btn.textContent = manualMode ? '▶' : '⏸';
+      btn.style.background = manualMode ? '#333' : '#e94560';
+      if (!manualMode) {
+        // Restore from server state
+        if (lastServerEmotion) setEmotion(lastServerEmotion);
+        else if (lastServerState) setState(lastServerState, true);
+      }
+    }
+
+    // ── PIXI + Model loading ──────────────────────────────────────────────
+    function initPIXI() {
+      app = new PIXI.Application({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        transparent: true,
+        antialias: true
+      });
+      document.getElementById('canvas-container').appendChild(app.view);
+      window.addEventListener('resize', () => {
+        app.renderer.resize(window.innerWidth, window.innerHeight);
+        if (currentModel) {
+          currentModel.position.set(window.innerWidth / 2, window.innerHeight / 2);
+        }
+      });
+    }
+
+    async function loadModel(modelUrl) {
+      setStatus('Loading model...');
+      try {
+        if (currentModel) {
+          app.stage.removeChild(currentModel);
+          currentModel.destroy({ children: true, texture: true, baseTexture: true });
+        }
+        const model = await PIXI.live2d.Live2DModel.from(modelUrl);
+        modelScale = 0.3;
+        model.scale.set(modelScale);
+        model.position.set(window.innerWidth / 2, window.innerHeight / 2);
+        model.anchor.set(0.5, 0.5);
+        model.interactive = true;
+        model.buttonMode = true;
+
+        model.on('pointerdown', (e) => {
+          isDragging = true;
+          const pos = e.data.global;
+          dragOffset.x = model.x - pos.x;
+          dragOffset.y = model.y - pos.y;
+        });
+        model.on('pointermove', (e) => {
+          if (isDragging) {
+            const pos = e.data.global;
+            model.x = pos.x + dragOffset.x;
+            model.y = pos.y + dragOffset.y;
+          }
+        });
+        model.on('pointerup', () => { isDragging = false; });
+        model.on('pointerupoutside', () => { isDragging = false; });
+
+        // Scroll to resize
+        model.on('wheel', (e) => {
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? -0.03 : 0.03;
+          modelScale = Math.max(0.05, Math.min(2.0, modelScale + delta));
+          model.scale.set(modelScale);
+          setStatus(`Scale: ${(modelScale * 100).toFixed(0)}%`);
+        });
+
+        app.stage.addChild(model);
+        currentModel = model;
+
+        // Update model name and rebuild expression buttons
+        const select = document.getElementById('model-select');
+        currentModelName = select.options[select.selectedIndex]?.textContent || '';
+        buildExpressionButtons(currentModelName);
+        updateActiveButtons();
+        setStatus(`Ready! Drag to move. [${currentModelName}]`);
+      } catch (err) {
+        console.error('Failed to load model:', err);
+        setStatus('Error: ' + err.message);
+      }
+    }
+
+    // ── Model selector ─────────────────────────────────────────────────────
+    function setupSelector() {
+      const select = document.getElementById('model-select');
+      select.innerHTML = '';
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.url;
+        opt.textContent = m.name;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', (e) => {
+        if (e.target.value) loadModel(e.target.value);
+      });
+      if (models.length > 0) loadModel(models[0].url);
+    }
+
+    // ── State file polling (matches waifu_hook.py _write_state_file) ───────
+    async function pollState() {
+      try {
+        const res = await fetch('/state');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.state && data.state !== lastServerState) {
+          lastServerState = data.state;
+          if (!manualMode) setState(data.state);
+        }
+        if (data.emotion && data.emotion !== lastServerEmotion) {
+          lastServerEmotion = data.emotion;
+          if (!manualMode) setEmotion(data.emotion);
+        }
+        if (data.expression && !manualMode) {
+          currentExpression = data.expression;
+          applyExpressionToModel(data.expression);
+          updateActiveButtons();
+        }
+      } catch (e) {
+        // No server endpoint — that's fine, manual mode works
+      }
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    window.addEventListener('load', () => {
+      buildStateButtons();
+      buildEmotionButtons();
+      updateActiveButtons();
+      initPIXI();
+      setupSelector();
+      setInterval(pollState, 500);
+    });
+  </script>
+</body>
+</html>
