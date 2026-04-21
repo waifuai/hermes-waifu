@@ -239,8 +239,18 @@ def set_waifu_state(state: str):
         _current_state = state
 
 
+def _play_ping():
+    """Play a notification sound when Neko-chan responds."""
+    try:
+        # Terminal bell — works everywhere, swap for ffplay <file> for custom sound
+        print('\a', end='', flush=True)
+    except Exception:
+        pass
+
+
 def on_agent_reply(text: str):
     """Triggered when response is ready. Detects emotion from text."""
+    _play_ping()
     if text:
         emotion = detect_emotion(text)
         set_waifu_state(emotion)
