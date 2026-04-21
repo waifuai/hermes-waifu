@@ -39,11 +39,11 @@ footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; paddin
 <h1>Hermes Waifu</h1>
 <p>Documentation hub for AI agents and developers</p>
 </header>
-# hermes-waifu
+<h1>hermes-waifu</h1>
 
 Live2D waifu display for Hermes Agent with expression controls.
 
-## What is this?
+<h2>What is this?</h2>
 
 Live animated waifu you can drag around, resize, and control expressions. No TTS, no chat, no complexity.
 
@@ -58,7 +58,7 @@ Live animated waifu you can drag around, resize, and control expressions. No TTS
 - Manual mode toggle (override auto state)
 - Minimal dependencies (4 CDN scripts)
 
-## Expression System
+<h2>Expression System</h2>
 
 Three rows of controls at the bottom:
 
@@ -74,9 +74,9 @@ Emotion→expression mapping matches `waifu_hook.py`:
 
 Active expression/emotion is highlighted with a glow.
 
-## Expression Details
+<h2>Expression Details</h2>
 
-### Haru (f00-f07)
+<h3>Haru (f00-f07)</h3>
 | ID | Face |
 |----|------|
 | f00 | neutral |
@@ -88,7 +88,7 @@ Active expression/emotion is highlighted with a glow.
 | f06 | sad |
 | f07 | pouty |
 
-### Mao (exp_01-exp_08)
+<h3>Mao (exp_01-exp_08)</h3>
 | ID | Face |
 |----|------|
 | exp_01 | neutral |
@@ -100,12 +100,12 @@ Active expression/emotion is highlighted with a glow.
 | exp_07 | worried |
 | exp_08 | angry |
 
-### Motion-only (Hiyori, Rice, Senko)
+<h3>Motion-only (Hiyori, Rice, Senko)</h3>
 No expression files — only idle/tap motions. Emotion buttons exist but have no visual effect on the model face.
 
-## Usage
+<h2>Usage</h2>
 
-### Live2D Display
+<h3>Live2D Display</h3>
 
 Open `index.html` in a browser. No server needed, no build step. Pure client-side.
 
@@ -116,7 +116,7 @@ Open `index.html` in a browser. No server needed, no build step. Pure client-sid
 - ⏸/▶ button toggles manual mode (ignores server state)
 - Model selector in top-right header
 
-### Hermes Agent Integration
+<h3>Hermes Agent Integration</h3>
 
 Symlink `src/waifu.py` and `src/waifu_hook.py` into `~/.hermes/hermes-agent/`:
 
@@ -129,7 +129,7 @@ Then run `python waifu.py` instead of `python cli.py` to get lifecycle hooks inj
 
 `waifu_hook.py` writes state to `~/.hermes-waifu-state.json`. The HTML polls `/state` to sync (requires a server endpoint, or use manual mode).
 
-## Adding more models
+<h2>Adding more models</h2>
 
 Edit the `models` array in `index.html`:
 
@@ -146,7 +146,7 @@ const models = [
 
 Models must be hosted online (CDN) or served locally.
 
-## License
+<h2>License</h2>
 
 MIT No Attribution - see [LICENSE](LICENSE)
 
